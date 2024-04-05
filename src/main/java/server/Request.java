@@ -1,20 +1,23 @@
 package server;
 
+import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.net.URIBuilder;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.net.Socket;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public class Request {
     private String METHOD;
     private String PATH;
     private List<String> HEADERS;
+    private List<NameValuePair> QUERY_PARAMS;
     private String BODY;
 
-    public Request(BufferedInputStream in, BufferedOutputStream out) throws IOException {
+    public Request(BufferedInputStream in, BufferedOutputStream out) throws IOException, URISyntaxException {
         final var limit = 4096;
 
         in.mark(limit);
@@ -46,7 +49,11 @@ public class Request {
             Server.badRequest(out, "Incorrect request path");
             return;
         }
-        PATH = path;
+
+        var uriBuilder = new URIBuilder(path);
+
+        PATH = uriBuilder.getPath();
+        QUERY_PARAMS = uriBuilder.getQueryParams();
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
@@ -61,6 +68,7 @@ public class Request {
 
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
         HEADERS = Arrays.asList(new String(headersBytes).split("\r\n"));
+//        System.out.println(this);
     }
 
     public String getMethod() {
@@ -86,7 +94,9 @@ public class Request {
         builder.append(" ");
         builder.append(PATH);
         builder.append("\r\n");
-        builder.append(HEADERS);
+        HEADERS.forEach(header -> {
+            builder.append(header).append("\r\n");
+        });
 
         if (BODY != null) {
             builder.append("\r\n");
