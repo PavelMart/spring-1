@@ -1,18 +1,9 @@
 package server;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,6 +23,12 @@ public class Server {
     );
 
     private final int PORT;
+    public static final String GET = "GET";
+    public static final String POST = "POST";
+    public static final String PUT = "PUT";
+    public static final String DELETE = "DELETE";
+    public static final List<String> allowedMethods = List.of(GET, POST, PUT, DELETE);
+
 
     private Map<String, Handler> GET_handlers = new HashMap<>();
     private Map<String, Handler> POST_handlers = new HashMap<>();
@@ -60,73 +57,26 @@ public class Server {
         }
     }
 
-    public boolean validateRequest(String requestLine) {
-        if (requestLine == null) {
-            return false;
-        }
-
-        if (requestLine.split(" ").length != 3) {
-            return false;
-        }
-
-        return true;
-    }
-
     public void handleSocket(Socket socket) {
+
         try (
-                final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                final var in = new BufferedInputStream(socket.getInputStream());
                 final var out = new BufferedOutputStream(socket.getOutputStream());
         ) {
-            final var requestLine = in.readLine();
+            var request = new Request(in, out);
 
-            if (!validateRequest(requestLine)) {
-                return;
-            }
-
-            StringBuilder headersBuilder = new StringBuilder();
-
-            String line;
-            while (true) {
-                line = in.readLine();
-                if (line == null || line.isEmpty()) {
+            switch (request.getMethod()) {
+                case GET:
+                    GET_handlers.get(request.getPath()).handle(request, out);
                     break;
-                }
-                headersBuilder.append(line).append("\r\n");
-            }
-
-            String headers = headersBuilder.toString();
-
-            final var parts = requestLine.split(" ");
-
-            final var path = parts[1];
-            if (!validPaths.contains(path)) {
-                out.write((
-                        "HTTP/1.1 404 Not Found\r\n" +
-                                "Content-Length: 0\r\n" +
-                                "Connection: close\r\n" +
-                                "\r\n"
-                ).getBytes());
-                out.flush();
-                return;
-            }
-
-            var method = parts[0];
-            var requestPath = parts[1];
-
-            var request = new Request(method, requestPath, headers);
-
-            switch (method) {
-                case "GET":
-                    GET_handlers.get(requestPath).handle(request, out);
+                case POST:
+                    POST_handlers.get(request.getPath()).handle(request, out);
                     break;
-                case "POST":
-                    POST_handlers.get(requestPath).handle(request, out);
+                case PUT:
+                    PUT_handlers.get(request.getPath()).handle(request, out);
                     break;
-                case "PUT":
-                    PUT_handlers.get(requestPath).handle(request, out);
-                    break;
-                case "DELETE":
-                    DELETE_handlers.get(requestPath).handle(request, out);
+                case DELETE:
+                    DELETE_handlers.get(request.getPath()).handle(request, out);
                     break;
             }
 
@@ -146,5 +96,35 @@ public class Server {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void badRequest(BufferedOutputStream out, String message) throws IOException {
+        var body = "{\r\n" +
+                "\"message\": " + message + "\r\n" +
+                "}";
+        out.write((
+                "HTTP/1.1 400 Bad Request\r\n" +
+                        "Content-Length: " + body.length() + "\r\n" +
+                        "Connection: close\r\n" +
+                        "Content-Type: application/json" +
+                        "\r\n\r\n" +
+                        body
+
+
+        ).getBytes());
+        out.flush();
+    }
+
+    public static int indexOf(byte[] array, byte[] target, int start, int max) {
+        outer:
+        for (int i = start; i < max - target.length + 1; i++) {
+            for (int j = 0; j < target.length; j++) {
+                if (array[i + j] != target[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 }

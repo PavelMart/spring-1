@@ -11,16 +11,22 @@ import java.util.List;
 
 public class Main {
     public static List<String> pages = List.of("/index.html", "/events.html", "/forms.html", "/links.html", "/resources.html");
+    public static List<String> resources = List.of("/app.js", "/events.js", "/spring.png", "/spring.svg", "/styles.css");
 
     public static void main(String[] args) {
         final var server = new Server(5000);
 
         pages.forEach(page -> {
-            server.addHandler("GET", page, Main::getPage);
+            server.addHandler("GET", page, Main::send);
+        });
+        resources.forEach(resource -> {
+            server.addHandler("GET", resource, Main::send);
         });
 
+        server.addHandler("POST", "/index.html", Main::send);
+
         server.addHandler("GET", "/classic.html", (Request request, BufferedOutputStream response) -> {
-            final var filePath = Path.of(".", "public", request.PATH);
+            final var filePath = Path.of(".", "public", request.getPath());
             final var mimeType = Files.probeContentType(filePath);
             final var template = Files.readString(filePath);
             final var content = template.replace(
@@ -42,8 +48,8 @@ public class Main {
 
     }
 
-    public static void getPage(Request request, BufferedOutputStream response) throws IOException {
-        final var filePath = Path.of(".", "public", request.PATH);
+    public static void send(Request request, BufferedOutputStream response) throws IOException {
+        final var filePath = Path.of(".", "public", request.getPath());
         final var mimeType = Files.probeContentType(filePath);
         final var length = Files.size(filePath);
         response.write((
