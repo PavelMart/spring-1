@@ -59,9 +59,6 @@ public class Server {
             var path = request.getPath();
             var method = request.getMethod();
 
-            System.out.println(request.getQueryParams());
-            System.out.println(request.getQueryParam("id"));
-
             var doHandlers = handlers.get(method);
 
             for(Map.Entry<Pattern, Handler> entry : doHandlers.entrySet()) {
