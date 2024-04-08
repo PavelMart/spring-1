@@ -1,7 +1,7 @@
 package ru.netology;
 
-import server.Request;
-import server.Server;
+import ru.netology.server.Request;
+import ru.netology.server.Server;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -14,7 +14,7 @@ public class Main {
     public static List<String> resources = List.of("/app.js", "/events.js", "/spring.png", "/spring.svg", "/styles.css");
 
     public static void main(String[] args) {
-        final var server = new Server(5000);
+        final var server = new Server(8080);
 
         pages.forEach(page -> {
             server.addHandler("GET", page, Main::send);
