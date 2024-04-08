@@ -1,11 +1,14 @@
-package server;
+package ru.netology.server;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Server {
     final List<String> validPaths = List.of(
@@ -29,11 +32,7 @@ public class Server {
     public static final String DELETE = "DELETE";
     public static final List<String> allowedMethods = List.of(GET, POST, PUT, DELETE);
 
-
-    private Map<String, Handler> GET_handlers = new HashMap<>();
-    private Map<String, Handler> POST_handlers = new HashMap<>();
-    private Map<String, Handler> PUT_handlers = new HashMap<>();
-    private Map<String, Handler> DELETE_handlers = new HashMap<>();
+    private final Map<String, ConcurrentHashMap<Pattern, Handler>> handlers = new ConcurrentHashMap<>();
     private final ExecutorService threadPool = Executors.newFixedThreadPool(64);
 
     public Server(int port) {
@@ -41,19 +40,11 @@ public class Server {
     }
 
     public void addHandler(String method, String path, Handler handler) {
-        switch (method) {
-            case "GET":
-                GET_handlers.put(path, handler);
-                break;
-            case "POST":
-                POST_handlers.put(path, handler);
-                break;
-            case "PUT":
-                PUT_handlers.put(path, handler);
-                break;
-            case "DELETE":
-                DELETE_handlers.put(path, handler);
-                break;
+        if (!handlers.containsKey(method)) {
+            handlers.put(method, new ConcurrentHashMap<>(){{put(Pattern.compile(path), handler);}});
+        } else {
+            var doHandlers = handlers.get(method);
+            doHandlers.put(Pattern.compile(path), handler);
         }
     }
 
@@ -65,21 +56,18 @@ public class Server {
         ) {
             var request = new Request(in, out);
 
-            switch (request.getMethod()) {
-                case GET:
-                    GET_handlers.get(request.getPath()).handle(request, out);
-                    break;
-                case POST:
-                    POST_handlers.get(request.getPath()).handle(request, out);
-                    break;
-                case PUT:
-                    PUT_handlers.get(request.getPath()).handle(request, out);
-                    break;
-                case DELETE:
-                    DELETE_handlers.get(request.getPath()).handle(request, out);
-                    break;
-            }
+            var path = request.getPath();
+            var method = request.getMethod();
 
+            var doHandlers = handlers.get(method);
+
+            for(Map.Entry<Pattern, Handler> entry : doHandlers.entrySet()) {
+                Matcher matcher = entry.getKey().matcher(path);
+                if (matcher.matches()) {
+                    entry.getValue().handle(request, out);
+                    return;
+                }
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

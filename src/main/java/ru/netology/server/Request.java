@@ -1,18 +1,16 @@
-package server;
+package ru.netology.server;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public class Request {
-    private String METHOD;
-    private String PATH;
-    private List<String> HEADERS;
-    private String BODY;
+    private String method;
+    private String path;
+    private List<String> headers;
+    private String body;
 
     public Request(BufferedInputStream in, BufferedOutputStream out) throws IOException {
         final var limit = 4096;
@@ -34,19 +32,19 @@ public class Request {
             return;
         }
 
-        final var method = requestLine[0];
-        if (!Server.allowedMethods.contains(method)) {
+        final var reqMethod = requestLine[0];
+        if (!Server.allowedMethods.contains(reqMethod)) {
             Server.badRequest(out, "Method don't allowed");
             return;
         }
-        METHOD = method;
+        method = reqMethod;
 
-        final var path = requestLine[1];
-        if (!path.startsWith("/")) {
+        final var reqPath = requestLine[1];
+        if (!reqPath.startsWith("/")) {
             Server.badRequest(out, "Incorrect request path");
             return;
         }
-        PATH = path;
+        path = reqPath;
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
@@ -60,37 +58,37 @@ public class Request {
         in.skip(headersStart);
 
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
-        HEADERS = Arrays.asList(new String(headersBytes).split("\r\n"));
+        headers = Arrays.asList(new String(headersBytes).split("\r\n"));
     }
 
     public String getMethod() {
-        return METHOD;
+        return method;
     }
 
     public String getPath() {
-        return PATH;
+        return path;
     }
 
     public List<String> getHeaders() {
-        return HEADERS;
+        return headers;
     }
     public String getBody() {
-        return BODY;
+        return body;
     }
 
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append(METHOD);
+        builder.append(method);
         builder.append(" ");
-        builder.append(PATH);
+        builder.append(path);
         builder.append("\r\n");
-        builder.append(HEADERS);
+        builder.append(headers);
 
-        if (BODY != null) {
+        if (body != null) {
             builder.append("\r\n");
-            builder.append(BODY);
+            builder.append(body);
         }
 
         return builder.toString();
