@@ -1,4 +1,4 @@
-package server;
+package ru.netology.server;
 
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.message.BasicNameValuePair;
@@ -14,11 +14,11 @@ import java.util.List;
 import java.util.Objects;
 
 public class Request {
-    private String METHOD;
-    private String PATH;
-    private List<String> HEADERS;
-    private List<NameValuePair> QUERY_PARAMS;
-    private List<NameValuePair> BODY;
+    private String method;
+    private String path;
+    private List<String> headers;
+    private List<NameValuePair> queryParams;
+    private List<NameValuePair> body;
 
     public Request(BufferedInputStream in, BufferedOutputStream out) throws IOException, URISyntaxException {
         final var limit = 4096;
@@ -40,23 +40,23 @@ public class Request {
             return;
         }
 
-        final var method = requestLine[0];
-        if (!Server.allowedMethods.contains(method)) {
+        final var reqMethod = requestLine[0];
+        if (!Server.allowedMethods.contains(reqMethod)) {
             Server.badRequest(out, "Method don't allowed");
             return;
         }
-        METHOD = method;
+        method = reqMethod;
 
-        final var path = requestLine[1];
-        if (!path.startsWith("/")) {
+        final var reqPath = requestLine[1];
+        if (!reqPath.startsWith("/")) {
             Server.badRequest(out, "Incorrect request path");
             return;
         }
 
-        var uriBuilder = new URIBuilder(path);
+        var uriBuilder = new URIBuilder(reqPath);
 
-        PATH = uriBuilder.getPath();
-        QUERY_PARAMS = uriBuilder.getQueryParams();
+        path = uriBuilder.getPath();
+        queryParams = uriBuilder.getQueryParams();
 
         final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
         final var headersStart = requestLineEnd + requestLineDelimiter.length;
@@ -70,39 +70,52 @@ public class Request {
         in.skip(headersStart);
 
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
-        HEADERS = Arrays.asList(new String(headersBytes).split("\r\n"));
+        headers = Arrays.asList(new String(headersBytes).split("\r\n"));
 
-        if (!Objects.equals(METHOD, "GET")) {
-            BODY = readBody(in, headersDelimiter);
+        if (!Objects.equals(method, "GET")) {
+            body = readBody(in, headersDelimiter);
         }
 
-//        System.out.println(this);
+        System.out.println(body);
     }
 
     public String getMethod() {
-        return METHOD;
+        return method;
     }
 
     public String getPath() {
-        return PATH;
+        return path;
     }
+
+    public List<NameValuePair> getQueryParam(String name) {
+        if (queryParams == null) {
+            return null;
+        }
+        return queryParams.stream()
+                .filter(entry -> name.equals(entry.getName()))
+                .toList();
+    }
+
+    public List<NameValuePair> getQueryParams() {
+        return queryParams;
+    }
+
 
     public List<String> getHeaders() {
-        return HEADERS;
+        return headers;
     }
-
     public List<NameValuePair> getBody() {
-        return BODY;
+        return body;
     }
 
     private List<NameValuePair> readBody(BufferedInputStream in, byte[] headersDelimiter) throws IOException {
         in.skip(headersDelimiter.length);
-        final var contentLength = Server.extractHeader(HEADERS, "Content-Length");
+        final var contentLength = Server.extractHeader(headers, "Content-Length");
 
         if (contentLength.isEmpty()) {
             return null;
         }
-        final var contentType = Server.extractHeader(HEADERS, "Content-Type");
+        final var contentType = Server.extractHeader(headers, "Content-Type");
         if (contentType.get().isEmpty()) {
             return null;
         }
@@ -111,17 +124,12 @@ public class Request {
         final var bodyBytes = in.readNBytes(length);
         final var body = new String(bodyBytes);
 
-        System.out.println(body);
+        return switch (contentType.get()) {
+            case "application/x-www-form-urlencoded" -> parseXWWWFormUrlencoded(body);
+            case "multipart/form-data" -> parseMultipartForm(in);
+            default -> new ArrayList<>();
+        };
 
-        switch (contentType.get()) {
-            case "application/x-www-form-urlencoded":
-                return parseXWWWFormUrlencoded(body);
-            case "multipart/form-data":
-                parseMultipartForm(in);
-                break;
-        }
-
-        return new ArrayList<>();
     }
 
     private List<NameValuePair> parseMultipartForm(BufferedInputStream in) {
@@ -144,17 +152,18 @@ public class Request {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append(METHOD);
+        builder.append(method);
         builder.append(" ");
-        builder.append(PATH);
+        builder.append(path);
         builder.append("\r\n");
-        HEADERS.forEach(header -> {
+        builder.append(headers);
+        headers.forEach(header -> {
             builder.append(header).append("\r\n");
         });
 
-        if (BODY != null) {
+        if (body != null) {
             builder.append("\r\n");
-            builder.append(BODY);
+            builder.append(body);
         }
 
         return builder.toString();
