@@ -1,21 +1,24 @@
 package server;
 
 import org.apache.hc.core5.http.NameValuePair;
+import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class Request {
     private String METHOD;
     private String PATH;
     private List<String> HEADERS;
     private List<NameValuePair> QUERY_PARAMS;
-    private String BODY;
+    private List<NameValuePair> BODY;
 
     public Request(BufferedInputStream in, BufferedOutputStream out) throws IOException, URISyntaxException {
         final var limit = 4096;
@@ -68,6 +71,11 @@ public class Request {
 
         final var headersBytes = in.readNBytes(headersEnd - headersStart);
         HEADERS = Arrays.asList(new String(headersBytes).split("\r\n"));
+
+        if (!Objects.equals(METHOD, "GET")) {
+            BODY = readBody(in, headersDelimiter);
+        }
+
 //        System.out.println(this);
     }
 
@@ -82,10 +90,56 @@ public class Request {
     public List<String> getHeaders() {
         return HEADERS;
     }
-    public String getBody() {
+
+    public List<NameValuePair> getBody() {
         return BODY;
     }
 
+    private List<NameValuePair> readBody(BufferedInputStream in, byte[] headersDelimiter) throws IOException {
+        in.skip(headersDelimiter.length);
+        final var contentLength = Server.extractHeader(HEADERS, "Content-Length");
+
+        if (contentLength.isEmpty()) {
+            return null;
+        }
+        final var contentType = Server.extractHeader(HEADERS, "Content-Type");
+        if (contentType.get().isEmpty()) {
+            return null;
+        }
+
+        final var length = Integer.parseInt(contentLength.get());
+        final var bodyBytes = in.readNBytes(length);
+        final var body = new String(bodyBytes);
+
+        System.out.println(body);
+
+        switch (contentType.get()) {
+            case "application/x-www-form-urlencoded":
+                return parseXWWWFormUrlencoded(body);
+            case "multipart/form-data":
+                parseMultipartForm(in);
+                break;
+        }
+
+        return new ArrayList<>();
+    }
+
+    private List<NameValuePair> parseMultipartForm(BufferedInputStream in) {
+        return new ArrayList<>();
+    }
+
+    private List<NameValuePair> parseXWWWFormUrlencoded(String body) {
+        List<NameValuePair> pairs = new ArrayList<>();
+        var queryParts = body.split("&");
+        Arrays.stream(queryParts).forEach(part -> {
+            var parts = part.split("=");
+            var name = parts[0];
+            var value = parts[1];
+            var pair = new BasicNameValuePair(name, value);
+            pairs.add(pair);
+        });
+        return pairs;
+    }
 
     @Override
     public String toString() {

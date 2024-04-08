@@ -31,10 +31,10 @@ public class Server {
     public static final List<String> allowedMethods = List.of(GET, POST, PUT, DELETE);
 
 
-    private Map<String, Handler> GET_handlers = new HashMap<>();
-    private Map<String, Handler> POST_handlers = new HashMap<>();
-    private Map<String, Handler> PUT_handlers = new HashMap<>();
-    private Map<String, Handler> DELETE_handlers = new HashMap<>();
+    private final Map<String, Handler> GET_handlers = new HashMap<>();
+    private final Map<String, Handler> POST_handlers = new HashMap<>();
+    private final Map<String, Handler> PUT_handlers = new HashMap<>();
+    private final Map<String, Handler> DELETE_handlers = new HashMap<>();
     private final ExecutorService threadPool = Executors.newFixedThreadPool(64);
 
     public Server(int port) {
@@ -128,5 +128,13 @@ public class Server {
             return i;
         }
         return -1;
+    }
+
+    public static Optional<String> extractHeader(List<String> headers, String header) {
+        return headers.stream()
+                .filter(o -> o.startsWith(header))
+                .map(o -> o.substring(o.indexOf(" ")))
+                .map(String::trim)
+                .findFirst();
     }
 }
