@@ -99,12 +99,13 @@ public class Request {
     public List<NameValuePair> getQueryParams() {
         return queryParams;
     }
-
-
     public List<String> getHeaders() {
         return headers;
     }
-    public List<NameValuePair> getBody() {
+    public NameValuePair getPart(String name) {
+        return body.stream().filter(entry -> name.equals(entry.getName())).toList().get(0);
+    }
+    public List<NameValuePair> getParts() {
         return body;
     }
 
@@ -129,7 +130,6 @@ public class Request {
             case "multipart/form-data" -> parseMultipartForm(in);
             default -> new ArrayList<>();
         };
-
     }
 
     private List<NameValuePair> parseMultipartForm(BufferedInputStream in) {
